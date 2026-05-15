@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>compact-viz — Compression Progress Visualizer</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-glow: rgba(88,166,255,0.15);
+    --green: #3fb950;
+    --green-glow: rgba(63,185,80,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-bottom: 40px;
+  }
+
+  /* ── Theme Switcher ─────────────────────────── */
+  .theme-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+
+  .theme-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .theme-btn:hover { border-color: var(--accent); color: var(--text); }
+  .theme-btn.active {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ── Preview Cards ──────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 640px;
+    margin-bottom: 24px;
+  }
+
+  .card-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+  }
+
+  /* ── Horizontal Bar (Theme 1) ───────────────── */
+  .bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #79c0ff);
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+  }
+
+  .bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.12), transparent);
+    border-radius: 4px 4px 0 0;
+  }
+
+  .bar-pct {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Unicode Bar (Theme 2) ──────────────────── */
+  .unicode-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .unicode-track {
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .unicode-track .filled { color: var(--accent); }
+  .unicode-track .empty { color: var(--border); }
+
+  .unicode-pct {
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Diagonal Grid (Theme 3) ────────────────── */
+  .grid-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .grid-canvas-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .grid-canvas {
+    width: 100%;
+    height: 80px;
+    display: block;
+  }
+
+  .grid-pct {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--green);
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Wave Bar (Theme 4) ─────────────────────── */
+  .wave-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .wave-track {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .wave-bar {
+    flex: 1;
+    background: var(--border);
+    border-radius: 2px 2px 0 0;
+    transition: height 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                background 0.4s ease;
+    min-height: 3px;
+  }
+
+  .wave-bar.active {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+
+  .wave-pct {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Controls ────────────────────────────────── */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .control-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    min-width: 70px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .speed-display {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .action-btn {
+    background: var(--accent-glow);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .action-btn:hover { background: var(--accent); color: var(--bg); }
+
+  /* ── Footer ──────────────────────────────────── */
+  .footer {
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    text-align: center;
+  }
+
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>compact-viz</h1>
+<p class="subtitle">compression progress visualizer</p>
+
+<div class="theme-switcher">
+  <button class="theme-btn active" data-theme="bar">Bar</button>
+  <button class="theme-btn" data-theme="unicode">Unicode</button>
+  <button class="theme-btn" data-theme="grid">Diagonal Grid</button>
+  <button class="theme-btn" data-theme="wave">Wave</button>
+  <button class="theme-btn" data-theme="all">All</button>
+</div>
+
+<!-- Bar -->
+<div class="card" id="card-bar">
+  <div class="card-label">horizontal bar</div>
+  <div class="bar-container">
+    <div class="bar-track">
+      <div class="bar-fill" id="bar-fill"></div>
+    </div>
+    <div class="bar-pct" id="bar-pct">0%</div>
+  </div>
+</div>
+
+<!-- Unicode -->
+<div class="card" id="card-unicode" style="display:none">
+  <div class="card-label">unicode blocks</div>
+  <div class="unicode-bar">
+    <div class="unicode-track" id="unicode-track"></div>
+    <div class="unicode-pct" id="unicode-pct">0%</div>
+  </div>
+</div>
+
+<!-- Diagonal Grid -->
+<div class="card" id="card-grid" style="display:none">
+  <div class="card-label">diagonal grid</div>
+  <div class="grid-container">
+    <div class="grid-canvas-wrap">
+      <canvas class="grid-canvas" id="grid-canvas"></canvas>
+    </div>
+    <div class="grid-pct" id="grid-pct">0%</div>
+  </div>
+</div>
+
+<!-- Wave -->
+<div class="card" id="card-wave" style="display:none">
+  <div class="card-label">wave</div>
+  <div class="wave-container">
+    <div class="wave-track" id="wave-track"></div>
+    <div class="wave-pct" id="wave-pct">0%</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="control-row">
+    <span class="control-label">Progress</span>
+    <input type="range" id="slider" min="0" max="100" value="0">
+    <span class="speed-display" id="slider-val">0%</span>
+  </div>
+  <div class="control-row">
+    <span class="control-label">Speed</span>
+    <input type="range" id="speed" min="1" max="10" value="3">
+    <span class="speed-display" id="speed-val">3x</span>
+  </div>
+  <div class="btn-row">
+    <button class="action-btn" id="btn-animate">Animate</button>
+    <button class="action-btn" id="btn-reset">Reset</button>
+  </div>
+</div>
+
+<p class="footer">
+  compact-viz &mdash; open-source compression progress visualization<br>
+  <a href="#">github</a>
+</p>
+
+<script>
+// ── State ─────────────────────────────────────────
+let pct = 0;
+let animating = false;
+let animId = null;
+let speed = 3;
+const WAVE_BARS = 30;
+
+// ── DOM refs ──────────────────────────────────────
+const slider = document.getElementById('slider');
+const sliderVal = document.getElementById('slider-val');
+const speedSlider = document.getElementById('speed');
+const speedVal = document.getElementById('speed-val');
+
+const barFill = document.getElementById('bar-fill');
+const barPct = document.getElementById('bar-pct');
+const unicodeTrack = document.getElementById('unicode-track');
+const unicodePct = document.getElementById('unicode-pct');
+const gridCanvas = document.getElementById('grid-canvas');
+const gridPct = document.getElementById('grid-pct');
+const waveTrack = document.getElementById('wave-track');
+const wavePct = document.getElementById('wave-pct');
+
+const cards = {
+  bar: document.getElementById('card-bar'),
+  unicode: document.getElementById('card-unicode'),
+  grid: document.getElementById('card-grid'),
+  wave: document.getElementById('card-wave'),
+};
+
+// ── Theme Switcher ────────────────────────────────
+let activeTheme = 'bar';
+
+document.querySelectorAll('.theme-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTheme = btn.dataset.theme;
+
+    Object.entries(cards).forEach(([key, card]) => {
+      card.style.display = (activeTheme === 'all' || activeTheme === key) ? '' : 'none';
+    });
+  });
+});
+
+// ── Slider ────────────────────────────────────────
+slider.addEventListener('input', () => {
+  pct = parseInt(slider.value);
+  sliderVal.textContent = pct + '%';
+  render();
+});
+
+speedSlider.addEventListener('input', () => {
+  speed = parseInt(speedSlider.value);
+  speedVal.textContent = speed + 'x';
+});
+
+// ── Buttons ───────────────────────────────────────
+document.getElementById('btn-animate').addEventListener('click', () => {
+  if (animating) return;
+  animating = true;
+  pct = 0;
+  slider.value = 0;
+
+  const tick = () => {
+    pct += speed * 0.3;
+    if (pct > 100) pct = 100;
+    slider.value = Math.round(pct);
+    sliderVal.textContent = Math.round(pct) + '%';
+    render();
+    if (pct < 100) {
+      animId = requestAnimationFrame(tick);
+    } else {
+      animating = false;
+    }
+  };
+  animId = requestAnimationFrame(tick);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (animId) cancelAnimationFrame(animId);
+  animating = false;
+  pct = 0;
+  slider.value = 0;
+  sliderVal.textContent = '0%';
+  render();
+});
+
+// ── Render ────────────────────────────────────────
+function render() {
+  const p = Math.round(pct);
+
+  // Bar
+  barFill.style.width = p + '%';
+  barPct.textContent = p + '%';
+
+  // Unicode
+  const total = 30;
+  const filled = Math.round(p / 100 * total);
+  const filledChar = '▰'; // ▰
+  const emptyChar = '▱';  // ▱
+  unicodeTrack.innerHTML =
+    '<span class="filled">' + filledChar.repeat(filled) + '</span>' +
+    '<span class="empty">' + emptyChar.repeat(total - filled) + '</span>';
+  unicodePct.textContent = p + '%';
+
+  // Diagonal Grid
+  renderGrid(p);
+
+  // Wave
+  renderWave(p);
+}
+
+// ── Diagonal Grid Renderer ────────────────────────
+function renderGrid(pct) {
+  const canvas = gridCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid config
+  const cellW = 10;
+  const cellH = 10;
+  const gap = 3;
+  const angle = Math.PI / 6; // 30-degree tilt
+  const cols = Math.ceil(w / (cellW + gap)) + 4;
+  const rows = Math.ceil(h / (cellH + gap)) + 4;
+
+  // Total cells and how many should be filled
+  const totalCells = cols * rows;
+  const filledCells = Math.round(pct / 100 * totalCells);
+
+  // We fill diagonally: top-right to bottom-left
+  // Create a diagonal index for each cell
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // Diagonal index: higher = more to the right/top
+      const diag = c - r + rows;
+      cells.push({ r, c, diag });
+    }
+  }
+
+  // Sort by diagonal (fill from high diag to low)
+  cells.sort((a, b) => b.diag - a.diag || a.c - b.c);
+
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+
+  for (let i = 0; i < cells.length; i++) {
+    const { r, c } = cells[i];
+    const isFilled = i < filledCells;
+
+    // Position with skew
+    const x = c * (cellW + gap);
+    const y = r * (cellH + gap);
+
+    // Apply diagonal offset
+    const dx = x * cosA - y * sinA + w * 0.15;
+    const dy = x * sinA + y * cosA - h * 0.3;
+
+    // Skip if out of bounds
+    if (dx < -cellW || dx > w + cellW || dy < -cellH || dy > h + cellH) continue;
+
+    if (isFilled) {
+      // Filled cell with gradient feel
+      const brightness = 0.6 + 0.4 * (1 - i / totalCells);
+      const r_c = Math.round(63 * brightness);
+      const g_c = Math.round(185 * brightness);
+      const b_c = Math.round(80 * brightness);
+      ctx.fillStyle = `rgb(${r_c},${g_c},${b_c})`;
+      ctx.shadowColor = 'rgba(63,185,80,0.3)';
+      ctx.shadowBlur = 4;
+    } else {
+      ctx.fillStyle = '#21262d';
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+    }
+
+    // Draw tilted cell
+    ctx.save();
+    ctx.translate(dx + cellW/2, dy + cellH/2);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    const radius = 2;
+    roundRect(ctx, -cellW/2, -cellH/2, cellW, cellH, radius);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+
+  gridPct.textContent = pct + '%';
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+}
+
+// ── Wave Renderer ─────────────────────────────────
+function renderWave(pct) {
+  const bars = waveTrack.children;
+  const filled = Math.round(pct / 100 * WAVE_BARS);
+
+  for (let i = 0; i < WAVE_BARS; i++) {
+    const bar = bars[i];
+    if (!bar) continue;
+
+    // Wave height: sine curve that shifts with time
+    const phase = (Date.now() / 600 + i * 0.3) % (Math.PI * 2);
+    const waveH = 8 + Math.sin(phase) * 6;
+
+    if (i < filled) {
+      const h = Math.max(6, waveH + (pct / 100) * 16);
+      bar.style.height = h + 'px';
+      bar.classList.add('active');
+    } else {
+      bar.style.height = '4px';
+      bar.classList.remove('active');
+    }
+  }
+}
+
+// ── Init ──────────────────────────────────────────
+// Create wave bars
+for (let i = 0; i < WAVE_BARS; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'wave-bar';
+  waveTrack.appendChild(bar);
+}
+
+render();
+
+// Subtle wave animation when idle
+let waveFrame;
+function animateWave() {
+  if (pct > 0 && pct < 100) renderWave(Math.round(pct));
+  waveFrame = requestAnimationFrame(animateWave);
+}
+animateWave();
+
+// Handle resize for grid
+window.addEventListener('resize', () => renderGrid(Math.round(pct)));
+</script>
+</body>
+</html>

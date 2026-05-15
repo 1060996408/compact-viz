@@ -1,0 +1,41 @@
+{
+  "name": "compact-viz",
+  "version": "0.1.0",
+  "description": "Animated compression progress visualizer for the terminal — Unicode bars, diagonal grids, wave effects",
+  "main": "src/index.js",
+  "bin": {
+    "compact-viz": "./bin/compact-viz.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./themes": "./src/renderers/index.js"
+  },
+  "scripts": {
+    "start": "node bin/compact-viz.js",
+    "test": "node --test test/*.test.js",
+    "demo": "node scripts/serve-demo.js"
+  },
+  "keywords": [
+    "cli",
+    "terminal",
+    "progress",
+    "bar",
+    "visualization",
+    "animation",
+    "unicode",
+    "compact",
+    "compression"
+  ],
+  "author": "Jia Xuan",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "demo/",
+    "README.md",
+    "LICENSE"
+  ]
+}
