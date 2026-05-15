@@ -4,6 +4,8 @@ Animated compression progress visualizer for the terminal.
 
 Four themes: **Bar**, **Unicode**, **Diagonal Grid**, **Wave**.
 
+**[Live Demo](https://1060996408.github.io/compact-viz/)**
+
 ```
 ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ 55%
 ```
